@@ -58,6 +58,12 @@ try:
     _sm70_gptq_repack, _ = _sm70_marlin_v100_repack_ops()
     if _sm70_gptq_repack is not None:
         gptq_marlin_repack = _sm70_gptq_repack
+except RuntimeError:
+    # marlin_utils raises only on SM70, when the dense repack extension is
+    # missing. Swallowing it here would silently keep the zero-output JIT
+    # repack and zero the weights; surface it instead. Off SM70 the loader
+    # returns (None, None) rather than raising, so imports stay tolerant.
+    raise
 except Exception:
     pass
 
