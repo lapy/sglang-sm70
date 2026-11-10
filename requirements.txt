@@ -214,6 +214,8 @@ torchcodec==0.9.1
 torchvision==0.24.1+cu128
 tqdm==4.70.0
 traitlets==5.16.1
+# transformers is pinned to 5.8.1 here and in python/pyproject.toml; the V100 image,
+# the Qwen3.8 NVFP4 recipe and the CI wheel are all validated on this version.
 transformers==5.8.1
 trimesh==5.0.0
 triton==3.5.1
