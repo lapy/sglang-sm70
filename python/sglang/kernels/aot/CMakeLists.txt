@@ -129,6 +129,7 @@ include_directories(
 
 if (SGL_KERNEL_V100_ONLY)
     set(_DEFAULT_GENCODE "-gencode=arch=compute_70,code=sm_70")
+    add_compile_definitions(SGL_KERNEL_V100_ONLY=1)
 else()
     set(_DEFAULT_GENCODE "-gencode=arch=compute_90,code=sm_90")
 endif()
@@ -299,6 +300,7 @@ set(SOURCES
     "csrc/moe/cutlass_moe/w4a8/w4a8_moe_data.cu"
     "csrc/moe/cutlass_moe/w4a8/w4a8_grouped_mm_c3x.cu"
     "csrc/moe/moe_align_kernel.cu"
+    "csrc/moe/moe_sum_reduce.cu"
     "csrc/moe/moe_sum.cu"
     "csrc/moe/moe_topk_softmax_kernels.cu"
     "csrc/moe/moe_topk_sigmoid_kernels.cu"
@@ -319,7 +321,6 @@ if (NOT SGL_KERNEL_V100_ONLY)
         "csrc/expert_specialization/es_sm100_mxfp8_blockscaled.cu"
         "csrc/expert_specialization/es_sm100_mxfp8_blockscaled_group_quant.cu"
         "csrc/moe/fused_qknorm_rope_kernel.cu"
-        "csrc/moe/moe_sum_reduce.cu"
     )
 endif()
 
