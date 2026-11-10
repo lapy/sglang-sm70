@@ -152,12 +152,23 @@ python scripts/build_sm70_turbomind.py     # block-FP8 + FP16 MoE backend
 bash   scripts/setup_v100_marlin.sh        # GPTQ/AWQ repack + NVFP4 MoE
 ```
 
-Both install their `.so` into `python/sglang/kernels/prebuilt/`, which is where
+Both install into `python/sglang/kernels/prebuilt/`, which is where
 `sglang.kernels.sm70_paths` looks. That module is the single place that knows
 the location; if you relocate the artifacts, change it there and nowhere else.
 
-**This step is not optional.** The stock upstream Marlin MoE kernel is an empty
-stub below sm80: it writes nothing. If the V100 kernels are missing, the server
+Two artifacts land there, and both are required:
+
+- `_sm70_marlin_v100_dense.abi3.so` — the dense `marlin_v100` extension: the
+  real SM70 gptq/awq repack kernels plus the dense marlin GEMM.
+- `_sm70_marlin_v100_moe.abi3.so` — the MoE kernel.
+
+`setup_v100_marlin.sh` installs the dense one only if marlin_v100's build also
+produced `vllm/_C*.so`; a build that yielded just `_moe_C*.so` skips it without
+an error. Look for `installed -> .../_sm70_marlin_v100_dense.abi3.so` in the
+script's output.
+
+**This step is not optional.** The stock upstream Marlin kernels are empty stubs
+below sm80: they write nothing. If the V100 MoE kernel is missing, the server
 starts, answers, and returns **zero-valued expert output** — plausible-looking
 garbage rather than an error. You will see this warning at startup:
 
@@ -167,6 +178,27 @@ SM70 (V100) detected but the marlin_v100 MoE kernel was not found.
 ```
 
 Treat it as fatal.
+
+The dense half fails just as silently. The loader globs
+`_sm70_marlin_v100_dense*.so`; when nothing matches it returns `None`, and the
+callers fall back to SGLang's in-tree repack — the same intentional zero-output
+stub below sm_80 — so dense quantized linears produce zeros. There is no crash
+and no warning: the server runs at full speed, but the model echoes its prompt
+(`The capital of France is` → ` the capital of France is the capital of France
+is…`) and cannot answer `2 + 2`. That is the signature of this failure, not of a
+bad checkpoint.
+
+Confirm it loaded: the startup log must contain
+
+```
+SM70 (V100): using marlin_v100 gptq/awq repack from .../_sm70_marlin_v100_dense.abi3.so
+```
+
+If that line is absent, the dense repack is missing. One-line check:
+
+```bash
+grep -F "using marlin_v100 gptq/awq repack from" server.log
+```
 
 ## 7. Restore the CUDA 12 NCCL
 
@@ -366,7 +398,7 @@ Failures observed during bring-up, with their causes.
 | `ModuleNotFoundError: No module named 'deep_gemm'` during graph capture | An sm90+ backend was imported behind a bare `_is_cuda` gate — and V100 *is* CUDA. Optional backends must load through `_optional_graph_backend_types()`. |
 | `AssertionError: Unsupported layout: layer_first` | `--hicache-mem-layout` must be `page_first`. `MambaPoolHost` accepts only `page_first`/`page_first_direct`. |
 | `slice [0, N) escapes the M-byte pull workspace` | An all-reduce larger than the workspace was forced into the custom path. Oversized reduces must fall back to NCCL. |
-| Correct-looking but nonsensical answers | Almost certainly the Marlin MoE stub — see §6. Check the startup log for the ZERO-output warning. |
+| Correct-looking but nonsensical answers (echoes the prompt, cannot do arithmetic) | Almost certainly the Marlin V100 stub — see §6. Either the MoE kernel or the dense repack is missing; check the startup log for the ZERO-output warning and for `using marlin_v100 gptq/awq repack from ..._sm70_marlin_v100_dense.abi3.so`. |
 | ~100% CPU per rank while idle | `--sleep-on-idle` is not in effect. Healthy idle is ~4% per rank, with the scheduler blocked in `zmq.poll`. |
 
 ### Build takes an hour
