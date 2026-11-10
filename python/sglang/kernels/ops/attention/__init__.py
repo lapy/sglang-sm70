@@ -447,6 +447,46 @@ register_kernel(
         target="sglang.kernels.ops.attention.msa_v1.decode_plan:update_msa_v1_decode_plan",
     )
 )
+register_kernel(
+    KernelSpec(
+        op="attention.kda_sm70_recurrent",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.attention.kda_sm70:kda_sm70_recurrent",
+        capabilities=frozenset(
+            {CapabilityRequirement.cuda(min_sm=(7, 0), max_sm=(7, 0))}
+        ),
+    )
+)
+register_kernel(
+    KernelSpec(
+        op="attention.fp8_mqa_logits_sm70",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.attention.mqa_logits_sm70:fp8_mqa_logits_sm70",
+        capabilities=frozenset(
+            {CapabilityRequirement.cuda(min_sm=(7, 0), max_sm=(7, 0))}
+        ),
+    )
+)
+register_kernel(
+    KernelSpec(
+        op="attention.fp8_paged_mqa_logits_sm70",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.attention.mqa_logits_sm70:fp8_paged_mqa_logits_sm70",
+        capabilities=frozenset(
+            {CapabilityRequirement.cuda(min_sm=(7, 0), max_sm=(7, 0))}
+        ),
+    )
+)
+register_kernel(
+    KernelSpec(
+        op="attention.sparse_mla_sm70",
+        backend=KernelBackend.JIT,
+        target="sglang.kernels.ops.attention.sparse_mla_sm70:sparse_mla_sm70",
+        capabilities=frozenset(
+            {CapabilityRequirement.cuda(min_sm=(7, 0), max_sm=(7, 0))}
+        ),
+    )
+)
 
 for _fn in ("fp4_index_logits_paged", "finish_paged_indexer_topk"):
     register_kernel(
