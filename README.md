@@ -82,6 +82,8 @@ conda activate sglang-v100
 bash scripts/smoke_v100.sh
 ```
 
+Two Marlin artifacts have to be present, and a missing one fails silently. Without `_sm70_marlin_v100_dense.abi3.so` the loader finds nothing, the engine falls back to an in-tree repack that is a zero-output stub below sm_80, and dense quantized linears return zeros: the model echoes its prompt and cannot do arithmetic, with no crash and no warning. The startup log must contain `using marlin_v100 gptq/awq repack from ..._sm70_marlin_v100_dense.abi3.so`; if that line is absent, the dense repack is missing. [INSTALL.md §6](docs/v100/INSTALL.md#6-turbomind-sm70-and-marlin-v100) covers both artifacts and the checks.
+
 [docs/v100/INSTALL.md](docs/v100/INSTALL.md) walks through each step and what to do when one fails, including running the server as a systemd service.
 
 ### Docker

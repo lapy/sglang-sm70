@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# One-block builder + installer for the SM70 (V100) Marlin MoE kernel.
+# One-block builder + installer for the SM70 (V100) Marlin kernels.
 #
 # Builds https://github.com/zhinianqin/marlin_v100 against the *currently
 # active* Python env's torch (must match the torch SGLang will run with),
-# then installs the resulting MoE extension into SGLang's SM70 prebuilt dir
-# so it is auto-detected at runtime on SM70 (no env var needed).
+# then installs the resulting dense and MoE extensions into SGLang's SM70
+# prebuilt dir so they are auto-detected at runtime on SM70 (no env var needed).
 #
 # Usage (from any directory):
 #   conda activate sglang-v100            # or whichever env runs sglang
@@ -177,10 +177,16 @@ export CMAKE_ARGS="${CMAKE_ARGS:-}"
 log "building (MAX_JOBS=$MAX_JOBS) ... this takes ~15-40 min"
 ( cd "$REPO" && bash "$REPO/build.sh" )
 
-# --- verify the artifact exists ------------------------------------------------
-SO_MOE="$(ls "$REPO"/vllm/_moe_C*.so 2>/dev/null | head -1 || true)"
-[[ -f "$SO_MOE" ]] || die "build finished but $REPO/vllm/_moe_C*.so was not produced."
-log "built MoE extension: $SO_MOE"
+# --- locate the built artifacts -------------------------------------------------
+# The runtime loaders match these exact basenames; any other name is invisible
+# to them and the SM70 Marlin path silently falls back to SGLang's zero-output
+# JIT stub (dense quantized linears become zeros and the model echoes its prompt).
+SO_MOE="$REPO/vllm/_moe_C.abi3.so"
+SO_DENSE="$REPO/vllm/_C.abi3.so"
+[[ -f "$SO_MOE" ]] || die "build finished but $SO_MOE was not produced."
+[[ -f "$SO_DENSE" ]] || die "build finished but $SO_DENSE was not produced."
+log "built MoE extension:   $SO_MOE"
+log "built dense extension: $SO_DENSE"
 
 # --- install into SGLang's SM70 prebuilt dir ------------------------------------
 # RFC #29630 retired sglang.jit_kernel; sglang.kernels.sm70_paths is now the one
@@ -199,25 +205,32 @@ PYPATH
 fi
 mkdir -p "$PKG_DIR"
 
-DEST="$PKG_DIR/_sm70_marlin_v100_moe.abi3.so"
-cp -f "$SO_MOE" "$DEST"
-log "installed -> $DEST"
-
-# also install the dense _C extension (used by future dense-linear paths; harmless if unused)
-SO_C="$(ls "$REPO"/vllm/_C*.so 2>/dev/null | head -1 || true)"
-if [[ -f "$SO_C" ]]; then
-  cp -f "$SO_C" "$PKG_DIR/_sm70_marlin_v100_dense.abi3.so"
-  log "installed -> $PKG_DIR/_sm70_marlin_v100_dense.abi3.so"
-fi
+# Both exports are required: the dense one supplies the SM70 repack/GEMM used
+# by dense quantized linears, the MoE one the routed-expert kernel.
+DEST_MOE="$PKG_DIR/_sm70_marlin_v100_moe.abi3.so"
+DEST_DENSE="$PKG_DIR/_sm70_marlin_v100_dense.abi3.so"
+cp -f "$SO_MOE" "$DEST_MOE"
+cp -f "$SO_DENSE" "$DEST_DENSE"
+log "installed -> $DEST_MOE"
+log "installed -> $DEST_DENSE"
 
 # --- runtime smoke test ---------------------------------------------------------
+# Verify through SGLang's own loader, not just by filename: the dense loader
+# globs _sm70_marlin_v100_dense*.so and the MoE loader globs
+# _sm70_marlin_v100_moe*.so, and a mismatch is silent. The in-tree repack is a
+# zero-output stub below sm_80, so a missed .so zeroes every dense quantized
+# linear and the model echoes its prompt instead of answering.
 if [[ "${MARLIN_V100_SKIP_SMOKE:-0}" != 1 ]]; then
-  log "smoke test: load + op registration"
-  "$PYTHON" - <<PY || die "smoke test failed; the .so did not register torch.ops._moe_C.moe_wna16_marlin_gemm."
-import os, torch
-torch.ops.load_library("$DEST")
-assert hasattr(torch.ops._moe_C, "moe_wna16_marlin_gemm"), "op not registered"
-print("ok: torch.ops._moe_C.moe_wna16_marlin_gemm registered")
+  log "smoke test: MoE op registration + loader visibility of both extensions"
+  "$PYTHON" - <<PY || die "smoke test failed: SGLang's SM70 loader cannot resolve both extensions installed under $PKG_DIR (expected $DEST_MOE and $DEST_DENSE). A missed dense repack silently zeroes every dense quantized linear; fix the file names before deploying."
+import torch
+from sglang.srt.layers.quantization.marlin_utils import _sm70_marlin_v100_repack_ops
+torch.ops.load_library("$DEST_MOE")
+assert hasattr(torch.ops._moe_C, "moe_wna16_marlin_gemm"), "MoE op not registered"
+gptq_repack, awq_repack = _sm70_marlin_v100_repack_ops()
+assert gptq_repack is not None, "dense gptq_marlin_repack not found by SGLang's loader"
+assert awq_repack is not None, "dense awq_marlin_repack not found by SGLang's loader"
+print("ok: MoE op registered; dense gptq/awq repack resolved by SGLang's loader")
 PY
 else
   log "smoke test deferred to a separate cached build layer"
