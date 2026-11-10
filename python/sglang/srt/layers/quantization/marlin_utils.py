@@ -85,8 +85,24 @@ def _sm70_marlin_v100_available() -> bool:
         return False
 
 
+def _sm70_marlin_v100_dense_missing_error() -> RuntimeError:
+    """Error for an SM70 host without marlin_v100's dense extension."""
+    prebuilt = sm70_prebuilt_dir()
+    dense = prebuilt / "_sm70_marlin_v100_dense.abi3.so"
+    moe = prebuilt / "_sm70_marlin_v100_moe.abi3.so"
+    return RuntimeError(
+        "SM70 (V100) requires marlin_v100's dense Marlin extension, but it is "
+        "not available: missing '_sm70_marlin_v100_dense.abi3.so' (matched by "
+        f"'_sm70_marlin_v100_dense*.so'), expected at '{dense}' next to the "
+        f"MoE extension '{moe}'. SGLang's in-tree repack is a zero-output stub "
+        "below sm_80, so without it every dense quantized linear silently "
+        "produces zeros. Fix: run scripts/setup_v100_marlin.sh to build and "
+        "install it."
+    )
+
+
 @lru_cache(maxsize=1)
-def _sm70_marlin_v100_repack_ops():
+def _sm70_marlin_v100_repack_ops(required: bool = True):
     """Load marlin_v100's dense _C extension on SM70 and return its repack ops.
 
     sglang's JIT ``gptq_marlin_repack``/``awq_marlin_repack`` are
@@ -96,9 +112,19 @@ def _sm70_marlin_v100_repack_ops():
     ships real SM70 repack kernels in its dense extension; load it here.
 
     Returns ``(gptq_repack, awq_repack)`` callables, or ``(None, None)`` if the
-    extension is unavailable (non-SM70 or not built).
+    extension is unavailable on a non-SM70 device. On SM70 the extension is
+    mandatory -- returning None there would silently zero every dense quantized
+    linear -- so a missing extension raises RuntimeError; callers that only
+    probe availability pass ``required=False``.
     """
+    try:
+        major, minor = get_device_capability()
+    except Exception:
+        major, minor = None, None
+    is_sm70 = (major, minor) == (7, 0)
     if not _sm70_marlin_v100_available():
+        if required and is_sm70:
+            raise _sm70_marlin_v100_dense_missing_error()
         return None, None
     import glob
     import os
@@ -140,6 +166,8 @@ def _sm70_marlin_v100_repack_ops():
                 path,
             )
             return _gptq, _awq
+    if required and is_sm70:
+        raise _sm70_marlin_v100_dense_missing_error()
     return None, None
 
 
@@ -157,7 +185,9 @@ def _sm70_marlin_v100_gemm_op():
     if not _sm70_marlin_v100_available():
         return None
 
-    gptq_repack, _ = _sm70_marlin_v100_repack_ops()
+    # Probe only: a missing dense extension must surface from the mandatory
+    # repack path, not from this availability check.
+    gptq_repack, _ = _sm70_marlin_v100_repack_ops(required=False)
     if gptq_repack is None:
         return None
 
