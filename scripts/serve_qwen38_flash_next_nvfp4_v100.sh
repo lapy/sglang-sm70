@@ -69,6 +69,11 @@ export SGLANG_SM70_FORCE_FP16=1
 # before launch to select the previous implementation for comparisons.
 export SGLANG_SM70_DENSE_GEMV=1
 export SGLANG_SM70_QWEN_FUSIONS=1
+# MTP verify forwards are bs*num_draft_tokens rows wide (4/8/12/...); the NVFP4 fast path
+# only dispatches while M <= sm70_nvfp4_moe_decode_max_rows(). 32 covers every shape this
+# recipe can produce, so the native kernels are used at np>1 as well (measured +3% decode,
+# -45 ms TTFT, and it removes the fused_marlin fallback at np=2/3).
+export SGLANG_SM70_BATCHED_MOE32=1
 export SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192
 export SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0
 export SGLANG_NUMA_BIND_V2=0
@@ -138,7 +143,7 @@ args=(
   # random-token benchmark reports aggregate still climbing at four, because
   # random continuations are degenerate and the MTP draft model predicts them
   # almost perfectly (accept 3.98 of 4, against 2.6-2.7 on real text).
-  --max-running-requests 3
+  --max-running-requests 8
   --max-mamba-cache-size 20
   --chunked-prefill-size 4096
   # Cap total prefill tokens per forward pass at 4096 (was 8192/16384). The
@@ -220,8 +225,8 @@ args=(
   # Track --max-running-requests above: with three admitted requests the decode
   # batch is only ever 1-3, so capturing a bs=4 graph costs capture time and
   # memory for a shape that can no longer occur.
-  --cuda-graph-max-bs-decode 3
-  --cuda-graph-bs-decode 1 2 3
+  --cuda-graph-max-bs-decode 8
+  --cuda-graph-bs-decode 1 2 4 8
   # Upstream turns breakable prefill graphs on for this model (#41729). Its
   # capture (target 3.8 GB, then the draft) does not fit next to the KV pool
   # that --mem-fraction-static above was tuned for: the draft capture ran out

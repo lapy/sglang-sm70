@@ -186,3 +186,31 @@ All default off; each one only widens a measured dispatch and falls back to the 
 - Stability was hammered, not soaked: about an hour of agentic load at 1, 2 and 4 streams plus a beyond-spec 32k-token / 8-stream phase, no crash and no wrong output at `--mem-fraction-static 0.86`. No multi-day soak.
 - Greedy output is not bit-identical across cache states. The radix cache replays an approximate linear-attention state for a cached prefix, so a prompt on a token decision boundary can come out differently cold and warm. Every output is a valid completion.
 - The dense NVFP4 linear path is unverified. It matters only for checkpoints that quantise weights outside the MoE experts; this one does not.
+## Performance (measured 2026-11-11, 4x V100 @ 150 W cap)
+
+Decode with this recipe, warmed to 1530 MHz, median of five two-point samples:
+
+| metric | value |
+|---|---|
+| single stream | **108 tok/s** (server-reported 110) |
+| acceptance | 2.81 of 4 drafts |
+| TTFT | 387 ms |
+| 1 / 2 / 4 / 8 concurrent streams | **75 / 119 / 182 / 198 tok/s aggregate** |
+
+Two settings make this work and are worth knowing before you change them:
+
+- `SGLANG_SM70_BATCHED_MOE32=1` raises the NVFP4 decode row cap. MTP verify forwards are
+  `bs * num_draft_tokens` rows wide (4/8/.../32), and the native kernels only dispatch while
+  `M <= sm70_nvfp4_moe_decode_max_rows()`; with the old cap of 4 every np>1 verify fell back to
+  fused Marlin. This is worth ~3% decode, ~45 ms TTFT, and it is what lets higher concurrency pay off.
+- `--max-running-requests 8` with graphs `1 2 4 8`. Aggregate scales 75 -> 119 -> 182 -> 198 tok/s;
+  saturation is around 4-8 streams. The old "3 requests" default was measured on the Marlin fallback.
+
+Do **not** enable `SGLANG_SM70_MTP_LOCAL_TOP1`: it deadlocks the scheduler (watchdog at 300 s) on
+this build. `BATCHED_FUSIONS` + `MTP_SHARED_GATE` measured *slower* here (-10%) and shorter MTP
+chains (2 steps / 3 drafts) lose 20%.
+
+Benchmarking note: this box caps the V100s at 150 W and drops them to 135 MHz after 120 s idle, so a
+cold first request measures the clock ramp, not the engine. Warm up ~45 s, verify
+`nvidia-smi --query-gpu=clocks.sm`, and compare medians only. Absolute tok/s here are not comparable
+with measurements taken on 300 W cards.
