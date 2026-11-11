@@ -159,9 +159,13 @@ SGL_DEVICE void red_async_release_add(uint32_t* addr, uint32_t value) {
 }
 
 SGL_DEVICE float tanh_approx(float x) {
+#if !defined(USE_ROCM) && (!defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 750)
   float y;
   asm("tanh.approx.f32 %0, %1;" : "=f"(y) : "f"(x));
   return y;
+#else
+  return tanhf(x);
+#endif
 }
 
 }  // namespace ptx
