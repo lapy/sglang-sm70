@@ -184,11 +184,14 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
   m.impl("apply_shuffle_mul_sum", torch::kCUDA, &apply_shuffle_mul_sum);
 
   // DeepSeek-V4 fused indexer rope + hadamard + quant
+  #ifndef SGL_KERNEL_V100_ONLY
   m.def(
       "dsv4_fused_q_indexer_rope_hadamard_quant(Tensor q_input, Tensor! q_fp8, Tensor weight, "
       "Tensor! weights_out, float weight_scale, Tensor freqs_cis, Tensor positions) -> ()");
   m.impl("dsv4_fused_q_indexer_rope_hadamard_quant", torch::kCUDA, &dsv4_fused_q_indexer_rope_hadamard_quant);
+#endif
 
+  #ifndef SGL_KERNEL_V100_ONLY
   m.def(
       "fused_qk_norm_rope(Tensor! qkv, int num_heads_q, "
       "int num_heads_k, int num_heads_v, int head_dim, float eps, "
@@ -196,6 +199,7 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
       "bool is_neox, Tensor position_ids, float factor, float low, float high, float attention_factor, int rotary_dim) "
       "-> ()");
   m.impl("fused_qk_norm_rope", torch::kCUDA, &fused_qk_norm_rope);
+#endif
 
   /*
    * From csrc/moe/cutlass_moe/w4a8
@@ -365,19 +369,25 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
    * From csrc/expert_sepcialization
    */
 #if !defined(SGL_KERNEL_V100_ONLY)
+  #ifndef SGL_KERNEL_V100_ONLY
   m.def(
       "es_fp8_blockwise_scaled_grouped_mm(Tensor output, Tensor a, Tensor b, Tensor scales_a, Tensor scales_b, Tensor "
       "stride_a, Tensor stride_b, Tensor stride_d, Tensor problem_sizes, Tensor expert_offsets, Tensor workspace) -> "
       "()");
   m.impl("es_fp8_blockwise_scaled_grouped_mm", &es_fp8_blockwise_scaled_grouped_mm);
+#endif
+  #ifndef SGL_KERNEL_V100_ONLY
   m.def(
       "es_sm100_mxfp8_blockscaled_grouped_mm(Tensor a, Tensor b, Tensor sfa, Tensor sfb, Tensor d, Tensor "
       "problem_sizes, Tensor expert_offsets, Tensor blockscale_offsets) -> ()");
   m.impl("es_sm100_mxfp8_blockscaled_grouped_mm", &es_sm100_mxfp8_blockscaled_grouped_mm);
+#endif
+  #ifndef SGL_KERNEL_V100_ONLY
   m.def(
       "es_sm100_mxfp8_blockscaled_grouped_quant(Tensor input, Tensor problem_sizes, Tensor expert_offsets, Tensor "
       "blockscale_offsets, Tensor quant_output, Tensor scale_factor) -> () ");
   m.impl("es_sm100_mxfp8_blockscaled_grouped_quant", &es_sm100_mxfp8_blockscaled_grouped_quant);
+#endif
 #endif
 }
 
