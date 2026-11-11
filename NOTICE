@@ -1,0 +1,144 @@
+sglang-sm70
+===========
+
+SM70 (V100 / Volta) support for SGLang, carried as a stack of ten slices on top of
+upstream SGLang. An agentic-coding and serving stack for 32 GB V100s.
+
+    SGLang -- the inference engine, the trunk this fork tracks
+    https://github.com/sgl-project/sglang
+    Copyright 2023-2024 SGLang Team
+    Licensed under the Apache License, Version 2.0
+
+This project incorporates work from:
+
+    sglang-V100 -- the original Volta (sm70) port of SGLang
+    https://github.com/haohervchb/sglang-V100
+    Parts of the sm70 kernels, the Qwen4-Exp model support and the serving
+    recipes carried here originate in that repository.
+    Related: https://github.com/haohervchb/GooseLLM (TileLang FlashAttention
+             and GDN kernels for V100, Apache 2.0)
+
+    sglang-sxm2 -- the predecessor fork this stack was assembled and rebased from
+    https://github.com/dg1kjd/sglang-sxm2
+    The kernel layer, attention backends, cache/runner plumbing, speculative
+    decoding paths, environment registry and the docs under docs/v100/ were
+    developed there first. It also served as the working reference this rebase
+    was validated against, and its benchmark notes are the source of the
+    "predecessor" measurements quoted in docs/v100/.
+
+    1Cat-vLLM -- vLLM for V100; source of the sm70 TurboMind block-FP8 and
+    FP16 MoE backend the build compiles
+    https://github.com/1CatAI/1Cat-vLLM
+
+    vLLM -- Marlin kernel lineage and the GPTQ/AWQ Marlin repack layout
+    https://github.com/vllm-project/vllm
+    Apache License 2.0
+
+    KDA-1.5 -- submission b4181149c8884ddb contributes the SM121 Qwen3.8 packed
+    QSA decode kernel under python/sglang/kernels/kda_kernels/qwen38_qsa_sm121/
+    https://github.com/radixark/KDA-1.5
+
+This is an independent project. It is not affiliated with, endorsed by, or
+supported by the SGLang project or LMSYS. Please do not file issues about this
+project's sm70 code against upstream SGLang, and do not file issues about
+upstream SGLang here.
+
+Third-party components
+----------------------
+
+The Volta build links against, derives from, or adapts code from the following
+projects. Each remains under its own license and copyright; consult each
+project for terms. Unless noted, they are not redistributed in this repository;
+the installer fetches them at pinned revisions.
+
+  lmdeploy / TurboMind -- sm70 MoE and FP8 GEMM kernels (via 1Cat-vLLM)
+    https://github.com/InternLM/lmdeploy
+    Apache License 2.0
+
+  marlin_v100 -- SM70 Marlin GPTQ/AWQ kernels and the dense + MoE extensions
+    https://github.com/zhinianqin/marlin_v100
+    Pinned at 6d72a49939701d26b15b617a4cd2423174adb2d1 by scripts/setup_v100_marlin.sh
+
+  flash-attention-v100 -- FlashAttention for V100
+    https://github.com/ai-bond/flash-attention-v100
+    BSD 3-Clause License
+
+  v100-skinny -- the QPN8 FP8 decode GEMV adapted in
+    python/sglang/kernels/jit/csrc/sm70_fp8_qpn8_decode.cu
+    https://github.com/dnv2003/v100-skinny
+    MIT License
+
+  NVIDIA CUTLASS -- CuTe and CUTLASS headers behind the sm70 kernels
+    https://github.com/NVIDIA/cutlass
+    Copyright (c) NVIDIA Corporation
+
+  FlashInfer -- fetched from upstream by both installers, then patched for sm70
+    https://github.com/flashinfer-ai/flashinfer
+    Pinned at upstream commit c3c40a7b90b792fc59f90f8f55c9e2de9c1b6833 and patched with
+    patches/flashinfer-sm70.patch; no downstream FlashInfer fork is required.
+    Override with FLASHINFER_URL to build against a mirror.
+
+  TileLang -- the sm70 attention, GDN and QSA kernels build on TileLang
+    https://github.com/tile-ai/tilelang
+
+  Triton -- JIT kernels (GDN decode/verify, sampling, quantisation glue)
+    https://github.com/triton-lang/triton
+    MIT License
+
+  NVIDIA TensorRT ModelOpt -- NVFP4 quantisation and the ModelOpt checkpoint
+    format this stack loads (modelopt_fp4)
+    https://github.com/NVIDIA/TensorRT-ModelOpt
+    Apache License 2.0
+
+  apache-tvm-ffi -- the FFI used by the JIT kernel modules
+    https://github.com/apache/tvm-ffi
+    Apache License 2.0
+
+  xgrammar -- the grammar backend
+    https://github.com/mlc-ai/xgrammar
+    Apache License 2.0
+
+  NVIDIA CUDA Toolkit -- 12.6 for offline sm_70 code generation, 13.3 runtime
+  libraries where a dependency pins them. CUDA 12.9+ dropped offline sm_70
+  support, which is why the toolkit is pinned.
+    https://developer.nvidia.com/cuda-toolkit
+    NVIDIA CUDA Toolkit License
+
+Patches under patches/ are modifications to the above projects, distributed
+under this repository's Apache 2.0 license, and are only meaningful when applied
+to the upstream sources they name.
+
+Models
+------
+
+No model weights are distributed here. RadixArk/Qwen3.8-Flash-Next-NVFP4,
+GLM-5.3-Flash, DeepSeek-V4.1-Flash, MiniMax-H3 and any other checkpoint
+referenced in documentation or tests remain subject to their own licenses and
+terms of use, which you must satisfy independently.
+
+Model families referenced by the recipes and measured in docs/v100/:
+
+    Qwen3.8-Flash-Next-NVFP4 (RadixArk) -- the primary validation target
+      https://huggingface.co/RadixArk/Qwen3.8-Flash-Next-NVFP4
+    GLM-5.3-Flash, DeepSeek-V4.1-Flash, MiniMax-H3 -- additional sm70 recipes
+
+Documentation provenance
+------------------------
+
+The measurements in docs/v100/ come from two sources and are labelled as such:
+
+  * "this fork" numbers were re-measured on 4x V100-SXM2-32GB at a 150 W cap with
+    the harness described in docs/v100/PERFORMANCE-TUNING.md;
+  * "predecessor" numbers are quoted from the sglang-sxm2 fork's records, which
+    may have been taken on different hardware and power limits.
+
+Absolute throughput is only comparable within one power configuration; see the
+measurement caveat in docs/v100/PERFORMANCE-TUNING.md.
+
+Disclaimer
+----------
+
+Provided "AS IS", without warranty or condition of any kind, express or implied,
+per Section 7 of the Apache License 2.0 in LICENSE. This software drives
+expensive hardware in ways its vendors no longer support; you are responsible
+for validating it in your own environment before relying on it.
