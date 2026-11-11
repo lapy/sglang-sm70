@@ -47,6 +47,26 @@ try:
 except Exception:
     pass
 
+# On SM70 (V100) the stock JIT gptq_marlin_repack is an __CUDA_ARCH__<800 stub
+# that writes nothing -> expert weights would be repacked to all zeros. Prefer
+# marlin_v100's real SM70 repack when it is available.
+try:
+    from sglang.srt.layers.quantization.marlin_utils import (
+        _sm70_marlin_v100_repack_ops,
+    )
+
+    _sm70_gptq_repack, _ = _sm70_marlin_v100_repack_ops()
+    if _sm70_gptq_repack is not None:
+        gptq_marlin_repack = _sm70_gptq_repack
+except RuntimeError:
+    # marlin_utils raises only on SM70, when the dense repack extension is
+    # missing. Swallowing it here would silently keep the zero-output JIT
+    # repack and zero the weights; surface it instead. Off SM70 the loader
+    # returns (None, None) rather than raising, so imports stay tolerant.
+    raise
+except Exception:
+    pass
+
 
 @dataclass
 class MarlinLinearLayerConfig:

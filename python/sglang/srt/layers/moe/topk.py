@@ -37,7 +37,11 @@ import triton.language as tl
 
 from sglang.kernels.fused_op import BaseFusedOp
 from sglang.kernels.ops.moe.dsv4 import mask_topk_ids
+<<<<<<< ours
 from sglang.srt.configs.shared_experts import SharedExpertsConfig
+=======
+from sglang.kernels.ops.moe.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode_max_rows
+>>>>>>> theirs
 from sglang.srt.distributed.device_communicators.pynccl_allocator import (
     use_symmetric_memory,
 )
@@ -1214,6 +1218,25 @@ def fused_topk(
     assert hidden_states.shape[0] == gating_output.shape[0], "Number of tokens mismatch"
 
     M, _ = hidden_states.shape
+
+    if (
+        1 <= M <= sm70_nvfp4_moe_decode_max_rows()
+        and gating_output.shape == (M, 512)
+        and gating_output.dtype in (torch.float16, torch.float32)
+        and topk == 10
+        and renormalize
+        and correction_bias is None
+        and scoring_func == "softmax"
+        and routed_scaling_factor in (None, 1.0)
+        and not apply_routed_scaling_factor_on_output
+    ):
+        from sglang.kernels.ops.moe.sm70_nvfp4_moe_decode import (
+            sm70_nvfp4_moe_decode_available,
+            sm70_topk10_softmax,
+        )
+
+        if sm70_nvfp4_moe_decode_available():
+            return sm70_topk10_softmax(gating_output.contiguous())
 
     topk_weights = torch.empty(
         M, topk, dtype=torch.float32, device=hidden_states.device
