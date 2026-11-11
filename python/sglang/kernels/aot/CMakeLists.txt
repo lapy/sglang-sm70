@@ -573,13 +573,4 @@ target_include_directories(infllm_ops PRIVATE
 find_library(TORCH_PYTHON_LIBRARY torch_python PATHS "${TORCH_INSTALL_PREFIX}/lib" REQUIRED)
 target_link_libraries(infllm_ops PRIVATE ${TORCH_LIBRARIES} ${TORCH_PYTHON_LIBRARY} c10 cuda)
 install(TARGETS infllm_ops LIBRARY DESTINATION "sgl_kernel")
-<<<<<<< ours
-=======
 endif()
-
-# ============================ Extra Install: triton kernels ============================= #
-install(DIRECTORY "${repo-triton_SOURCE_DIR}/python/triton_kernels/triton_kernels/"
-        DESTINATION "triton_kernels"
-        PATTERN ".git*" EXCLUDE
-        PATTERN "__pycache__" EXCLUDE)
->>>>>>> theirs

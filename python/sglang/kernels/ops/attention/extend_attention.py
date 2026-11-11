@@ -26,11 +26,8 @@ import triton.language as tl
 
 from sglang.kernels.arch import current_arch
 from sglang.kernels.ops.attention.decode_attention import _extract_kv_strides
-<<<<<<< ours
 from sglang.kernels.ops.attention.dflash_block_splitkv import dflash_block_splitkv
-=======
 from sglang.kernels.ops.attention.fp8_sm70 import fp8_sm70_to_fp32
->>>>>>> theirs
 from sglang.kernels.ops.attention.score_mod import unpack_aux_tensors
 from sglang.srt.environ import envs
 from sglang.srt.utils import (
