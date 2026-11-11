@@ -215,6 +215,13 @@ else:
                     return output
 
                 awq_marlin_moe_repack = _sm70_awq_moe_repack
+        except RuntimeError:
+            # marlin_utils raises only on SM70, when the dense repack
+            # extension is missing. Swallowing it here would silently keep
+            # the zero-output JIT AWQ repack and zero the weights; surface it
+            # instead. Off SM70 the loader returns (None, None) rather than
+            # raising, so imports stay tolerant.
+            raise
         except Exception:
             pass
 
