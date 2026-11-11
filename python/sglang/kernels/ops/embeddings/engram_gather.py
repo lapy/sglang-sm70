@@ -139,13 +139,19 @@ def _engram_gather_kernel(
         MXFP4,
         SM70,
     )
-<<<<<<< ours
     out = tl.where(owned[:, None], vals, 0.0)
-    tl.store(
-        out_ptr + dst[:, None] * DIM + offs[None, :],
-        out.to(tl.bfloat16),
-        mask=valid[:, None],
-    )
+    if OUT_BF16:
+        tl.store(
+            out_ptr + dst[:, None] * DIM + offs[None, :],
+            out.to(tl.bfloat16),
+            mask=valid[:, None],
+        )
+    else:
+        tl.store(
+            out_ptr + dst[:, None] * DIM + offs[None, :],
+            out.to(tl.float16),
+            mask=valid[:, None],
+        )
 
 
 def _gather_rows_per_program() -> int:
@@ -153,13 +159,6 @@ def _gather_rows_per_program() -> int:
     per program is bound by its chain of dependent loads; 1 on GPUs not measured."""
     cuda = current_arch().cuda
     return 16 if cuda is not None and cuda.capability in ((10, 3), (10, 7)) else 1
-=======
-    out = tl.where(owned, vals, 0.0)
-    if OUT_BF16:
-        tl.store(out_ptr + dst * DIM + offs, out.to(tl.bfloat16))
-    else:
-        tl.store(out_ptr + dst * DIM + offs, out.to(tl.float16))
->>>>>>> theirs
 
 
 def engram_gather(

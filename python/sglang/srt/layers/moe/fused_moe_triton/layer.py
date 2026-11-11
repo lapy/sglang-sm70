@@ -69,6 +69,10 @@ from sglang.srt.layers.quantization.fp8 import Fp8MoEMethod
 from sglang.srt.layers.quantization.fp8_utils import quantize_block_fp8_weight_to_mxfp4
 from sglang.srt.layers.quantization.minimax_m3_nvfp4 import MiniMaxM3Nvfp4MoE
 from sglang.srt.layers.quantization.modelopt_quant import ModelOptNvFp4FusedMoEMethod
+from sglang.srt.layers.quantization.sm70_fp16_moe import (
+    SM70FP16MoEMethod,
+    can_use_sm70_fp16_moe,
+)
 from sglang.srt.layers.quantization.unquant import UnquantizedFusedMoEMethod
 from sglang.srt.model_executor.runner_backend_utils.tc_piecewise_cuda_graph import (
     get_tc_piecewise_forward_context,
@@ -547,17 +551,6 @@ class FusedMoE(torch.nn.Module):
             if self.quant_method is None and quant_config is not None:
                 self.quant_method = quant_config.get_quant_method(self, prefix)
             if self.quant_method is None:
-<<<<<<< ours
-                self.quant_method = UnquantizedFusedMoEMethod(
-                    self.use_flashinfer_trtllm_moe,
-                    self.use_deep_gemm,
-=======
-                from sglang.srt.layers.quantization.sm70_fp16_moe import (
-                    SM70FP16MoEMethod,
-                    can_use_sm70_fp16_moe,
->>>>>>> theirs
-                )
-
                 if (
                     not with_bias
                     and get_moe_a2a_backend().is_none()
@@ -566,7 +559,6 @@ class FusedMoE(torch.nn.Module):
                     self.quant_method = SM70FP16MoEMethod()
                 else:
                     self.quant_method = UnquantizedFusedMoEMethod(
-                        self.use_triton_kernels,
                         self.use_flashinfer_trtllm_moe,
                         self.use_deep_gemm,
                     )
@@ -1038,16 +1030,6 @@ class FusedMoE(torch.nn.Module):
                     not self.use_presharded_weights,
                 )
             elif not is_bias and not self.use_presharded_weights:
-<<<<<<< ours
-                # Derive shard size from the loaded weight so padded buffers
-                # do not cause out-of-bounds indexing into the checkpoint.
-                loaded_shard_size = loaded_weight.shape[shard_dim] // self.moe_tp_size
-                loaded_weight = loaded_weight.narrow(
-                    shard_dim, loaded_shard_size * self.moe_tp_rank, loaded_shard_size
-                )
-=======
-                if self.use_triton_kernels:
-                    loaded_weight = loaded_weight.transpose(-2, -1)
                 # Some params are allocated "full" on every rank (w2
                 # scales/qzeros for desc_act=False GPTQ-marlin carry all
                 # num_groups because is_k_full=True), so the checkpoint slice
@@ -1063,7 +1045,6 @@ class FusedMoE(torch.nn.Module):
                         loaded_shard_size * self.moe_tp_rank,
                         loaded_shard_size,
                     )
->>>>>>> theirs
 
         # w2, down_proj: Load into only logical weight of w2.
         loaded_weight = _maybe_copy_weight_view_before_h2d(loaded_weight)

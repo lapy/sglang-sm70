@@ -37,11 +37,8 @@ import triton.language as tl
 
 from sglang.kernels.fused_op import BaseFusedOp
 from sglang.kernels.ops.moe.dsv4 import mask_topk_ids
-<<<<<<< ours
-from sglang.srt.configs.shared_experts import SharedExpertsConfig
-=======
 from sglang.kernels.ops.moe.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode_max_rows
->>>>>>> theirs
+from sglang.srt.configs.shared_experts import SharedExpertsConfig
 from sglang.srt.distributed.device_communicators.pynccl_allocator import (
     use_symmetric_memory,
 )
