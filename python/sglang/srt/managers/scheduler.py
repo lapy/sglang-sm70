@@ -3883,11 +3883,9 @@ class Scheduler(
             self.request_retirer.abort(req, finished_reason=finished_reason)
 
     def _emit_aborted_waiting_req(self, req: Req) -> None:
-        """Fail a waiting request that can never be admitted (e.g. SWA livelock)."""
-        try:
-            self.waiting_queue.remove(req)
-        except ValueError:
-            pass
+        """Fail a request that can never be admitted (e.g. SWA livelock)."""
+        # The retirer leaves whichever list holds the request (waiting queue or
+        # the chunked slot); upstream's ReqList has no `remove`.
         reason = req.to_finish.to_json() if req.to_finish else None
         self.request_retirer.abort(req, finished_reason=reason)
 
@@ -4601,16 +4599,14 @@ class Scheduler(
                 adder.rem_chunk_tokens or 0,
                 self.page_size,
             )
-<<<<<<< ours
             if adder.add_chunked_req(resumed_req) is None:
                 # Its last chunk is in this batch.
                 move([resumed_req], self.prefill_launched_reqs)
-=======
-            self.chunked_req = adder.add_chunked_req(self.chunked_req)
-            if self.chunked_req is not None and self.chunked_req.to_finish:
-                self._emit_aborted_waiting_req(self.chunked_req)
-                self.chunked_req = None
->>>>>>> theirs
+            elif resumed_req.to_finish is not None:
+                # SM70: the adder aborts a chunk that can never be admitted
+                # (SWA head-of-line livelock) instead of parking it forever.
+                # The retirer takes it back out of the chunked list as it ends it.
+                self._emit_aborted_waiting_req(resumed_req)
 
         if self.enable_lora:
             running_reqs = running_batch.reqs

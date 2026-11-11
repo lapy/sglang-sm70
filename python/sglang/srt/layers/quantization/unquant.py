@@ -972,13 +972,10 @@ class UnquantizedLinearMethod(LinearMethodBase):
                 return bf16_gemm_dispatch(x, layer.weight, bias)
             return _bf16_gemm_dispatch_impl(x, layer.weight, bias)
 
-<<<<<<< ours
-        if bias is not None:
-            # RowParallelLinear holds its bias on TP rank 0 only, and FlashInfer
-            # syncs each tuning call across TP ranks.
-            _bf16_low_m_autotune(x, layer.weight, bias)
-        return F.linear(x, layer.weight, bias)
-=======
+        # SM70/V100: our fork's dense GEMV / rows-GEMV selection, tried ahead of
+        # the generic F.linear fallback. The weight/bias casts are the FP16 path
+        # (V100 has no native BF16 GEMM): the chosen kernel and the fallback both
+        # run on the cast copies.
         from sglang.kernels.ops.gemm.sm70_dense_gemv import linear, supported
 
         weight = layer.weight
@@ -992,6 +989,11 @@ class UnquantizedLinearMethod(LinearMethodBase):
 
         if bias is None and sm70_rows_gemv.supported(x, weight):
             return sm70_rows_gemv.linear(x, weight)
+
+        if bias is not None:
+            # RowParallelLinear holds its bias on TP rank 0 only, and FlashInfer
+            # syncs each tuning call across TP ranks.
+            _bf16_low_m_autotune(x, weight, bias)
         return F.linear(x, weight, bias)
 
     def apply_fused_silu_and_mul(self, layer, x):
@@ -1000,7 +1002,6 @@ class UnquantizedLinearMethod(LinearMethodBase):
         if gate_up_supported(x, layer.weight):
             return gate_up(x, layer.weight)
         return None
->>>>>>> theirs
 
     def apply_with_addend(
         self,
