@@ -72,7 +72,8 @@ def qwen38_qsa_sm121(
     from .kernel import qwen38_qsa_sm121 as run_kernel
 
     if not _logged_fast_path:
-        logger.info("Using the Codex/Kimi K3 KDA Qwen3.8 QSA kernel on SM121")
+        logger.info("Using the Codex/Kimi K3 KDA Qwen3.8 QSA kernel on SM121 "
+            "(radixark/KDA-1.5#4, submission b4181149c8884ddb)")
         _logged_fast_path = True
     return run_kernel(q, k, v, cu_seqlens_q, cu_seqlens_k, softmax_scale)
 

@@ -4,6 +4,12 @@ This implementation was optimized by Codex and Kimi K3 agents through the
 Kernel Design Agents workflow, against an immutable replay of real decode
 tensors.
 
+The task and the immutable replay were registered in
+[radixark/KDA-1.5 PR #4](https://github.com/radixark/KDA-1.5/pull/4)
+at commit `414ce456e14ae8546f77d9356d2c4d955c5bb7f1`; this package carries
+winning submission `b4181149c8884ddb` (source SHA256
+`4f9977f88abfea4393a2add3a2c9255699f7e13b981dbc1a976b024b3b00e909`).
+
 The kernel is specialized for the packed QSA decode tensors captured from
 `RadixArk/Qwen3.8-Flash-Next-NVFP4` on NVIDIA GB10 (SM121):
 

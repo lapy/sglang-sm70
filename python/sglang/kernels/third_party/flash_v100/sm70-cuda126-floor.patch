@@ -1,0 +1,18 @@
+diff --git a/setup.py b/setup.py
+index ede9bc5..8de67aa 100644
+--- a/setup.py
++++ b/setup.py
+@@ -138,8 +138,11 @@ def get_cmdclass():
+ 
+             if not torch.cuda.is_available():
+                 raise RuntimeError("CUDA is required but not available.")
+-            if parse(torch.version.cuda) < parse("12.8"):
+-                raise RuntimeError(f"CUDA version {torch.version.cuda} < 12.8 is not supported.")
++            # sglang-sm70: floor at 12.6. This host pins CUDA 12.6 because it is the last
++            # toolkit whose nvcc emits sm_70 without deprecation, and the only arch this
++            # extension builds is compute_70/sm_70 (see the gencode flags below).
++            if parse(torch.version.cuda) < parse("12.6"):
++                raise RuntimeError(f"CUDA version {torch.version.cuda} < 12.6 is not supported.")
+ 
+             super().build_extensions()
+ 

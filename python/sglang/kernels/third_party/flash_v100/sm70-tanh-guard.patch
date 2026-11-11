@@ -1,0 +1,40 @@
+diff --git a/include/mat_mul.h b/include/mat_mul.h
+index c386681..305ae88 100644
+--- a/include/mat_mul.h
++++ b/include/mat_mul.h
+@@ -13,6 +13,17 @@
+     #include "mma_m8n8k4.h"
+ #else
+     #include "mma_m16n16k16.h"
++
++// sglang-sm70: __tanhf exists in the device ISA only from sm_75. The softcap path below is
++// instantiated even when IS_SOFTCAP is false (the name is non-dependent), so the call has to
++// compile for compute_70. Device tanhf is available on every architecture this library targets.
++__device__ __forceinline__ float sm70_tanhf(float x) {
++#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 750)
++  return __tanhf(x);
++#else
++  return tanhf(x);
++#endif
++}
+ #endif
+ 
+ // ======================================================================================
+@@ -113,7 +124,7 @@ __device__ __forceinline__ void WMMA_GEMM_SCORES(
+                             val = __fmaf_rn(-ALIBI_SLOPE, fabsf(static_cast<float>(global_m - (global_n - SEQLEN_OFFSET))), val);
+                         }
+                         if constexpr (IS_SOFTCAP) {
+-                            val = __fmul_rn(SOFTCAP, __tanhf(__fmul_rn(val, softcap_rcp)));
++                            val = __fmul_rn(SOFTCAP, sm70_tanhf(__fmul_rn(val, softcap_rcp)));
+                         }
+                     } else {
+                         val = NEG_INF;
+@@ -142,7 +153,7 @@ __device__ __forceinline__ void WMMA_GEMM_SCORES(
+                         val = __fmaf_rn(-ALIBI_SLOPE, fabsf(static_cast<float>(global_m - (global_n - SEQLEN_OFFSET))), val);
+                     }
+                     if constexpr (IS_SOFTCAP) {
+-                        val = __fmul_rn(SOFTCAP, __tanhf(__fmul_rn(val, softcap_rcp)));
++                        val = __fmul_rn(SOFTCAP, sm70_tanhf(__fmul_rn(val, softcap_rcp)));
+                     }
+                 } else {
+                     val = NEG_INF;
